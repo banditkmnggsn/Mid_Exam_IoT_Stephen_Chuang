@@ -1,155 +1,106 @@
+// jawaban nomor 2 - Stephen Chuang - 2702269135
 #include <WiFi.h>
-#include <WiFiManager.h>
-#include <WiFiClientSecure.h>
-#include <Wire.h>
-#include <BH1750.h>
-#include <DHT.h>
 #include <PubSubClient.h>
-#include <ArduinoJson.h>
 
-#define DHTPIN 4      
-#define DHTTYPE DHT22
-DHT dht(DHTPIN, DHTTYPE);
+// Konfigurasi WiFi
+const char* ssid = "NAMA_WIFI_KAMU";
+const char* password = "PASSWORD_WIFI_KAMU";
 
-BH1750 lightMeter;
+// Konfigurasi MQTT
+const char* mqtt_server = "broker.emqx.io";
+const char* topic_subscribe = "1234567890/control/LED"; // Ganti dengan NIM kamu
 
-const char *mqtt_broker = "v49cca12.ala.asia-southeast1.emqxsl.com";
-const char *mqtt_topic_publish = "stephenchuang/2702269135/sensor";
-const char *mqtt_topic_subscribe = "stephenchuang/2702269135/control";
-const char *mqtt_username = "2702269135/environment";
-const char *mqtt_password = "Stephen Chuang";
-const int mqtt_port = 8883;
+WiFiClient espClient;
+PubSubClient client(espClient);
 
-WiFiClientSecure espClient;
-PubSubClient mqtt_client(espClient);
+// LED onboard ESP32
+#define LED_PIN 22
 
-unsigned long lastPublish = 0;
-const long publishInterval = 5000;
+// FreeRTOS handle dan semaphore
+TaskHandle_t blinkTaskHandle = NULL;
+SemaphoreHandle_t alertSemaphore;
 
-void connectToMQTT();
-void mqttCallback(char *topic, byte *payload, unsigned int length);
-void publishSensorData();
+void setup_wifi() {
+  delay(10);
+  Serial.println("Menghubungkan ke WiFi...");
+  WiFi.begin(ssid, password);
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+  Serial.println("\nWiFi terhubung");
+  Serial.print("IP: ");
+  Serial.println(WiFi.localIP());
+}
+
+void callback(char* topic, byte* payload, unsigned int length) {
+  String message;
+  for (int i = 0; i < length; i++) {
+    message += (char)payload[i];
+  }
+
+  Serial.print("Pesan MQTT diterima: ");
+  Serial.println(message);
+
+  if (message == "ALERT") {
+    xSemaphoreGive(alertSemaphore); // Kirim sinyal ke task LED
+  }
+}
+
+void mqttTask(void* parameter) {
+  setup_wifi();
+  client.setServer(mqtt_server, 1883);
+  client.setCallback(callback);
+
+  while (!client.connected()) {
+    Serial.println("Menghubungkan ke MQTT...");
+    if (client.connect("ESP32Client")) {
+      Serial.println("MQTT terhubung");
+      client.subscribe(topic_subscribe);
+    } else {
+      Serial.print("Gagal, rc=");
+      Serial.print(client.state());
+      delay(2000);
+    }
+  }
+
+  while (true) {
+    client.loop();
+    vTaskDelay(10 / portTICK_PERIOD_MS); // Hindari blocking
+  }
+}
+
+void blinkTask(void* parameter) {
+  pinMode(LED_PIN, OUTPUT);
+
+  while (true) {
+    if (xSemaphoreTake(alertSemaphore, 0) == pdTRUE) {
+      Serial.println("ALERT diterima: LED ON selama 10 detik");
+      digitalWrite(LED_PIN, HIGH);
+      vTaskDelay(10000 / portTICK_PERIOD_MS);
+      Serial.println("Kembali ke mode blink");
+    }
+
+    digitalWrite(LED_PIN, HIGH);
+    vTaskDelay(500 / portTICK_PERIOD_MS);
+    digitalWrite(LED_PIN, LOW);
+    vTaskDelay(500 / portTICK_PERIOD_MS);
+  }
+}
 
 void setup() {
   Serial.begin(115200);
-  delay(1000);
+  alertSemaphore = xSemaphoreCreateBinary();
 
-  WiFiManager wm;
+  xTaskCreatePinnedToCore(
+    mqttTask, "MQTT Task", 4096, NULL, 2, NULL, 1
+  );
 
-  Serial.println("WiFi connecting...");
-  bool res = wm.autoConnect("lolin 32 lite", "stephen chuang");
-
-  if (!res) {
-    Serial.println("Gagal konek ke WiFi, riset ESP...");
-    delay(3000);
-    ESP.restart();
-  } else {
-    Serial.println("Terkoneksi ke WiFi!");
-    Serial.print("IP Address: ");
-    Serial.println(WiFi.localIP());
-  }
-
-  dht.begin();
-  Wire.begin();
-  lightMeter.begin();
-  espClient.setInsecure();
-  mqtt_client.setServer(mqtt_broker, mqtt_port);
-  mqtt_client.setKeepAlive(60);
-  mqtt_client.setCallback(mqttCallback);
-  connectToMQTT();
+  xTaskCreatePinnedToCore(
+    blinkTask, "Blink Task", 2048, NULL, 1, &blinkTaskHandle, 1
+  );
 }
 
-void connectToMQTT() {
-  while (!mqtt_client.connected()) {
-    String client_id = "esp32-client-" + String(WiFi.macAddress());
-    Serial.printf("Connecting to MQTT Broker as %s.....\n", client_id.c_str());
-
-    if (mqtt_client.connect(client_id.c_str(), mqtt_username, mqtt_password)) {
-      Serial.println("Connected to EMQX MQTT broker");
-
-      mqtt_client.subscribe(mqtt_topic_subscribe);
-      Serial.printf("Subscribed to topic: %s\n", mqtt_topic_subscribe);
-
-      mqtt_client.publish(mqtt_topic_publish, "ESP32 DHT22 + BH1750 Connected!");
-    } else {
-      Serial.print("Failed to connect, rc=");
-      Serial.print(mqtt_client.state());
-      Serial.println(" try again in 5 seconds");
-      delay(5000);
-    }
-  }
-}
-
-void mqttCallback(char *topic, byte *payload, unsigned int length)
-{
-  Serial.print("path topik: ");
-  Serial.println(topic);
-  Serial.print("pesan: ");
-  String message = "";
-  for (unsigned int i = 0; i < length; i++)
-  {
-    message += (char)payload[i];
-  }
-  Serial.println(message);
-  Serial.println("-----------------------");
-}
-
-void publishSensorData()
-{
-  float temperature = dht.readTemperature();
-  float humidity = dht.readHumidity();
-  float lux = lightMeter.readLightLevel();
-
-  if (isnan(temperature) || isnan(humidity))
-  {
-    Serial.println("Failed to read from DHT sensor!");
-    return;
-  }
-
-  Serial.println("=== Sensor Data ===");
-  Serial.print("Suhu (°C): ");
-  Serial.println(temperature);
-  Serial.print("Kelembaban (%): ");
-  Serial.println(humidity);
-  Serial.print("Cahaya (lux): ");
-  Serial.println(lux);
-  Serial.println("====================");
-
-  // struktur data disesuaikan dengan JSON biar gampang diolah di MQTT Broker
-  StaticJsonDocument<200> doc;
-  doc["temperature"] = temperature;
-  doc["humidity"] = humidity;
-  doc["light"] = lux;
-  doc["device"] = "ESP32";
-  doc["timestamp"] = millis();
-
-  char jsonBuffer[200];
-  serializeJson(doc, jsonBuffer);
-
-  if (mqtt_client.publish(mqtt_topic_publish, jsonBuffer))
-  {
-    Serial.println("Data published to MQTT!");
-    Serial.println(jsonBuffer);
-  }
-  else
-  {
-    Serial.println("Failed to publish data");
-  }
-  Serial.println();
-}
-
-void loop()
-{
-  if (!mqtt_client.connected())
-  {
-    connectToMQTT();
-  }
-  mqtt_client.loop();
-
-  unsigned long currentMillis = millis();
-  if (currentMillis - lastPublish >= publishInterval)
-  {
-    lastPublish = currentMillis;
-    publishSensorData();
-  }
+void loop() {
+  // Tidak digunakan karena semua berjalan di FreeRTOS task
 }
