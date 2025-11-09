@@ -1,4 +1,4 @@
-//jawaban nomor 1 - Stephen Chuang - 2702269135
+//Multi-Sensor Data Publishing - Stephen Chuang - 2702269135
 #include <WiFi.h>
 #include <WiFiManager.h>
 #include <WiFiClientSecure.h>
