@@ -1,37 +1,26 @@
-// ESP-NOW SENDER (Transmitter)
-
-
+// esp_now_sender.ino
 #include <WiFi.h>
 #include <esp_now.h>
 
-// ==================== CONFIGURATION ====================
-// IMPORTANT: Ganti dengan MAC Address ESP32 Receiver!
-// Format: {0xXX, 0xXX, 0xXX, 0xXX, 0xXX, 0xXX}
 uint8_t receiverMAC[] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 
-// Testing parameters
-#define TEST_INTERVAL 1000      // Kirim paket setiap 1000ms (1 detik)
-#define PACKET_SIZE 32          // Ukuran data per paket (bytes)
+#define TEST_INTERVAL 1000
+#define PACKET_SIZE 32
 
-// ==================== DATA STRUCTURE ====================
 typedef struct TestPacket {
-  uint32_t packetID;           // ID paket untuk tracking
-  uint32_t timestamp;          // Waktu pengiriman (milliseconds)
-  char message[20];            // Pesan test
+  uint32_t packetID;
+  uint32_t timestamp;
+  char message[20];
 } TestPacket;
 
-// Global variables
 TestPacket testData;
 uint32_t packetCounter = 0;
 uint32_t successCount = 0;
 uint32_t failCount = 0;
 
-// ==================== CALLBACK FUNCTION ====================
-// Dipanggil setiap kali paket selesai dikirim
 void onDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) {
   Serial.println();
   Serial.println("========================================");
-  
   if (status == ESP_NOW_SEND_SUCCESS) {
     successCount++;
     Serial.print("✓ SUCCESS | Packet #");
@@ -43,11 +32,8 @@ void onDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) {
     Serial.print(testData.packetID);
     Serial.println(" not delivered");
   }
-  
-  // Calculate and display statistics
   uint32_t totalPackets = successCount + failCount;
-  float successRate = (float)successCount / totalPackets * 100.0;
-  
+  float successRate = (totalPackets == 0) ? 0.0 : (float)successCount / totalPackets * 100.0;
   Serial.println("----------------------------------------");
   Serial.print("Total Sent    : ");
   Serial.println(totalPackets);
@@ -61,23 +47,16 @@ void onDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) {
   Serial.println("========================================");
 }
 
-// ==================== SETUP ====================
 void setup() {
-  // Initialize Serial Monitor
   Serial.begin(115200);
-  delay(2000);  // Wait for serial monitor to open
-  
-  Serial.println("\n\n");
+  delay(2000);
+  Serial.println();
   Serial.println("╔════════════════════════════════════════╗");
   Serial.println("║   ESP-NOW SENDER (Transmitter)         ║");
   Serial.println("║   Stephen Chuang - 2702269135          ║");
   Serial.println("╚════════════════════════════════════════╝");
   Serial.println();
-  
-  // Set device as WiFi Station
   WiFi.mode(WIFI_STA);
-  
-  // Display MAC Address
   Serial.println("Device Information:");
   Serial.println("-------------------");
   Serial.print("MAC Address: ");
@@ -85,74 +64,51 @@ void setup() {
   Serial.print("Channel    : ");
   Serial.println(WiFi.channel());
   Serial.println();
-  
-  // Initialize ESP-NOW
   Serial.print("Initializing ESP-NOW... ");
   if (esp_now_init() != ESP_OK) {
     Serial.println("FAILED!");
     Serial.println("ERROR: Cannot initialize ESP-NOW");
-    Serial.println("Please restart the device");
-    while(1);  // Stop here
+    while(1);
   }
   Serial.println("SUCCESS");
-  
-  // Register send callback function
   esp_now_register_send_cb(onDataSent);
-  
-  // Add peer (receiver device)
   Serial.print("Adding receiver peer... ");
   esp_now_peer_info_t peerInfo;
-  memset(&peerInfo, 0, sizeof(peerInfo));  // Clear memory
+  memset(&peerInfo, 0, sizeof(peerInfo));
   memcpy(peerInfo.peer_addr, receiverMAC, 6);
-  peerInfo.channel = 0;    // Use current channel
-  peerInfo.encrypt = false; // No encryption
-  
+  peerInfo.channel = 0;
+  peerInfo.encrypt = false;
   if (esp_now_add_peer(&peerInfo) != ESP_OK) {
     Serial.println("FAILED!");
     Serial.println("ERROR: Cannot add peer");
-    Serial.println("Check if MAC address is correct");
-    while(1);  // Stop here
+    while(1);
   }
   Serial.println("SUCCESS");
   Serial.println();
-  
-  // Ready to transmit
   Serial.println("╔════════════════════════════════════════╗");
   Serial.println("║  READY TO TRANSMIT                     ║");
   Serial.println("║  Starting in 3 seconds...              ║");
   Serial.println("╚════════════════════════════════════════╝");
   Serial.println();
   delay(3000);
-  
   Serial.println(">>> TRANSMISSION STARTED <<<\n");
 }
 
-// ==================== MAIN LOOP ====================
 void loop() {
-  // Increment packet counter
   packetCounter++;
-  
-  // Prepare test packet
   testData.packetID = packetCounter;
   testData.timestamp = millis();
   snprintf(testData.message, sizeof(testData.message), "Test-%lu", packetCounter);
-  
-  // Display sending info
   Serial.print("→ Sending Packet #");
   Serial.print(testData.packetID);
   Serial.print(" | Time: ");
   Serial.print(testData.timestamp);
   Serial.print(" ms | Message: ");
   Serial.println(testData.message);
-  
-  // Send packet via ESP-NOW
   esp_err_t result = esp_now_send(receiverMAC, (uint8_t *)&testData, sizeof(testData));
-  
   if (result != ESP_OK) {
     Serial.println("✗ ERROR: esp_now_send() failed!");
     failCount++;
   }
-  
-  // Wait before next transmission
   delay(TEST_INTERVAL);
 }
