@@ -14,8 +14,8 @@ DHT dht(DHTPIN, DHTTYPE);
 BH1750 lightMeter;
 
 const char *mqtt_broker = "v49cca12.ala.asia-southeast1.emqxsl.com";
-const char *mqtt_topic_publish = "emqx/esp32/sensor";
-const char *mqtt_topic_subscribe = "emqx/esp32/control";
+const char *mqtt_topic_publish = "stephenchuang/2702269135/sensor";
+const char *mqtt_topic_subscribe = "stephenchuang/2702269135/control";
 const char *mqtt_username = "2702269135/environment";
 const char *mqtt_password = "Stephen Chuang";
 const int mqtt_port = 8883;
@@ -114,6 +114,7 @@ void publishSensorData()
   Serial.print("Cahaya (lux): ");
   Serial.println(lux);
   Serial.println("====================");
+
   // struktur data disesuaikan dengan JSON biar gampang diolah di MQTT Broker
   StaticJsonDocument<200> doc;
   doc["temperature"] = temperature;
