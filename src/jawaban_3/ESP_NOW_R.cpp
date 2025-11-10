@@ -20,15 +20,43 @@ uint32_t maxLatency = 0;
 
 int currentRSSI = 0;
 
+// FIX: Tambahkan variabel untuk time offset
+uint32_t timeOffset = 0;
+bool timeOffsetSet = false;
+
 void onDataRecv(const uint8_t *mac_addr, const uint8_t *data, int len) {
   memcpy(&receivedData, data, sizeof(receivedData));
   uint32_t receiveTime = millis();
-  uint32_t latency = receiveTime - receivedData.timestamp;
+  
+  // FIX: Set time offset dari packet pertama
+  if (!timeOffsetSet) {
+    timeOffset = receiveTime - receivedData.timestamp;
+    timeOffsetSet = true;
+    Serial.println("╔═══════════════════════════════════════════════╗");
+    Serial.println("║ TIME SYNC ESTABLISHED                         ║");
+    Serial.print("║ Offset: ");
+    Serial.print(timeOffset);
+    Serial.println(" ms");
+    Serial.println("╚═══════════════════════════════════════════════╝");
+  }
+  
+  // FIX: Hitung latency dengan compensated timestamp
+  uint32_t compensatedTimestamp = receivedData.timestamp + timeOffset;
+  uint32_t latency = receiveTime - compensatedTimestamp;
+  
+  // Safety check: jika latency masih tidak masuk akal, reset offset
+  if (latency > 10000) {  // Lebih dari 10 detik = ada yang salah
+    Serial.println("⚠ WARNING: Abnormal latency detected, resetting offset...");
+    timeOffset = receiveTime - receivedData.timestamp;
+    latency = 0;
+  }
+  
   currentRSSI = -50 - (latency * 2);
   totalPacketsReceived++;
   totalLatency += latency;
   if (latency < minLatency) minLatency = latency;
   if (latency > maxLatency) maxLatency = latency;
+  
   if (receivedData.packetID > lastPacketID + 1) {
     uint32_t lostPackets = receivedData.packetID - lastPacketID - 1;
     totalPacketLoss += lostPackets;
@@ -41,11 +69,13 @@ void onDataRecv(const uint8_t *mac_addr, const uint8_t *data, int len) {
     Serial.print("Lost Count: ");
     Serial.println(lostPackets);
   }
+  
   lastPacketID = receivedData.packetID;
   uint32_t totalExpected = receivedData.packetID;
   float lossRate = (totalExpected == 0) ? 0.0 : (float)totalPacketLoss / totalExpected * 100.0;
   float successRate = 100.0 - lossRate;
   float avgLatency = (totalPacketsReceived == 0) ? 0.0 : (float)totalLatency / totalPacketsReceived;
+  
   Serial.println();
   Serial.println("╔═══════════════════════════════════════════════╗");
   Serial.print("║ PACKET #");
@@ -85,6 +115,7 @@ void onDataRecv(const uint8_t *mac_addr, const uint8_t *data, int len) {
   Serial.print(maxLatency);
   Serial.println(" ms");
   Serial.println("╚═══════════════════════════════════════════════╝");
+  
   if (lossRate > 10.0) {
     Serial.println();
     Serial.println("⚠ WARNING: High packet loss (>10%)!");
@@ -99,11 +130,13 @@ void setup() {
   delay(2000);
   Serial.println();
   Serial.println("╔════════════════════════════════════════════════╗");
-  Serial.println("║   ESP-NOW RECEIVER (Listener)                  ║");
+  Serial.println("║   ESP-NOW RECEIVER (Listener) - FIXED          ║");
   Serial.println("║   Stephen Chuang - 2702269135                  ║");
   Serial.println("╚════════════════════════════════════════════════╝");
   Serial.println();
+  
   WiFi.mode(WIFI_STA);
+  
   Serial.println("╔════════════════════════════════════════════════╗");
   Serial.println("║ ⚠ COPY THIS MAC ADDRESS TO SENDER CODE!       ║");
   Serial.println("╠════════════════════════════════════════════════╣");
@@ -115,16 +148,20 @@ void setup() {
   Serial.println("║ {0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF}           ║");
   Serial.println("╚════════════════════════════════════════════════╝");
   Serial.println();
+  
   Serial.print("Initializing ESP-NOW... ");
   if (esp_now_init() != ESP_OK) {
     Serial.println("FAILED!");
     while(1);
   }
   Serial.println("SUCCESS");
+  
   esp_now_register_recv_cb(onDataRecv);
+  
   Serial.println();
   Serial.println("╔════════════════════════════════════════════════╗");
   Serial.println("║  READY TO RECEIVE PACKETS                      ║");
+  Serial.println("║  (Waiting for first packet to sync time...)    ║");
   Serial.println("╚════════════════════════════════════════════════╝");
   Serial.println(">>> LISTENING <<<");
 }
