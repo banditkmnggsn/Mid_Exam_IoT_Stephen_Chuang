@@ -1,6 +1,27 @@
-code ini berfungsi untuk membuat ESP saya dapat multitasking dibuktikan dengan saat menjalankan fungsi blinking led ESP saya masih dapat cek status "ALERT" dari feedback EMQX jadi ketika ALERT di trigger ESP akan memberhentikan fungsi blinking dan akan masuk ke mode alert dengan menyalakan led static selama 10 detik
+This code functions to enable my ESP to perform multitasking, as proven by the fact that while running the LED blinking function, it can still check the “ALERT” status from EMQX feedback. When “ALERT” is triggered, the ESP stops the blinking function and enters alert mode by turning on the LED steadily for 10 seconds.
 
-pada code ini saya juga merubah WM menjadi autoconnect saja tidak pakai pass agar lebih cepat di konfigurasi
+In this code, I also changed WiFiManager to use AutoConnect only without a password to make the configuration process faster.
 
-Pin led "ALERT" -> GPIO 33
-untuk mode blinking saya memakai led builtin
+The “ALERT” LED pin is set to GPIO 33, and for the blinking mode, I use the built-in LED.
+
+
+Log from serial monitor:
+
+rst:0x1 (POWERON_RESET),boot:0x13 (SPI_FAST_FLASH_BOOT)
+configsip: 0, SPIWP:0xee
+clk_drv:0x00,q_drv:0x00,d_drv:0x00,cs0_drv:0x00,hd_drv:0x00,wp_drv:0x00
+mode:DIO, clock div:2
+load:0x3fff0030,len:1184
+load:0x40078000,len:13232
+load:0x40080400,len:3028
+entry 0x400805e4
+*wm:AutoConnect 
+*wm:Connecting to SAVED AP: bandit's hotspot
+*wm:connectTimeout not set, ESP waitForConnectResult... 
+*wm:AutoConnect: SUCCESS 
+*wm:STA IP Address: 192.168.0.102
+Connecting to MQTT...
+MQTT connected
+MQTT message received: ALERT
+ALERT received: LED ON for 10s
+Returning to blink mode

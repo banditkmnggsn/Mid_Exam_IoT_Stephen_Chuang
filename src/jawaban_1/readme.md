@@ -1,4 +1,4 @@
-code ini berfungsi untuk menunjukan data dari DHT 11 dan BH1750 (sensor cahaya), di oper ke EMQX selama 1 menit, denhgan fitur tambahan yaitu subscribe ke path "stephenchuang/2702269135/control" untuk feed back berupa pesan dari MQTT ke lolin32 lite saya
+This code functions to show data from the DHT11 and BH1750 (light sensor), which is sent to EMQX for 1 minute, with an additional feature to subscribe to the path "stephenchuang/2702269135/control" for feedback messages from MQTT to my Lolin32 Lite.
 
 DHT 11 -> GPIO 14
 BH1750 -> SDA -> 18

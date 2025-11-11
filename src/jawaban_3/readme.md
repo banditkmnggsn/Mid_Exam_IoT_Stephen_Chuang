@@ -1,9 +1,8 @@
-code nomor 3 ini berfungsi untuk menguji prokolok komunikasi ESP NOW dan mencatat packet loss latensi dan lainya agar dapat di bandingkan dengan teori dari protokol komunikasi lain.
+This code functions to test the ESP-NOW communication protocol and record packet loss, latency, and other parameters so they can be compared with the theoretical performance of other communication protocols.
 
-untuk menguji code ini saya sudah siapkan environment berbeda di platformio.ini untuk lolin32 lite dan ESP32
+To test this code, I have prepared separate environments in platformio.ini for the Lolin32 Lite and ESP32 boards.
 
-
-Raw: berikut raw dari serial monitor yang telah saya reformat menggunakan AI
+Raw: Below is the raw data from the serial monitor, which I have reformatted using AI.
 ═══════════════════════════════════════════════════════════════════════════
 ║ PACKET #64 RECEIVED                                                     ║
 ╠═════════════════════════════════════════════════════════════════════════╣
