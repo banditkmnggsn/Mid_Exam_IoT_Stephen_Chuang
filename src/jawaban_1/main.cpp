@@ -51,9 +51,8 @@ void setup() {
   }
 
   dht.begin();
-  Wire.begin(18, 19);
-  
 
+  Wire.begin(18, 19);
   if (!lightMeter.begin(BH1750::CONTINUOUS_HIGH_RES_MODE)) {
     Serial.println(F("Error initializing BH1750"));
     delay(1000);
